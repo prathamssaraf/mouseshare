@@ -451,7 +451,7 @@ def main() -> None:
     from mouseshare.ui.tray import TrayIcon
 
     def _quit():
-        loop.call_soon_threadsafe(lambda: loop.stop())
+        loop.call_soon_threadsafe(loop.stop)
 
     tray = TrayIcon(
         loop=loop,
@@ -460,7 +460,6 @@ def main() -> None:
         on_quit=_quit,
     )
     session._tray = tray
-    tray.start_detached()
 
     async def _run():
         await session.start()
@@ -473,14 +472,28 @@ def main() -> None:
         finally:
             await session.stop()
 
+    # On macOS, pystray must run on the main thread.
+    # Run the asyncio loop in a background thread instead.
+    def _run_loop():
+        try:
+            loop.run_until_complete(_run())
+        except Exception as exc:
+            log.error("Event loop error: %s", exc)
+        finally:
+            loop.close()
+            log.info("MouseShare stopped")
+            tray.stop()
+
+    loop_thread = threading.Thread(target=_run_loop, daemon=True, name="ms-asyncio")
+    loop_thread.start()
+
+    # Run tray on main thread (required on macOS)
     try:
-        loop.run_until_complete(_run())
+        tray.start()   # blocks until quit
     except (KeyboardInterrupt, SystemExit):
-        pass
-    finally:
-        tray.stop()
-        loop.close()
-        log.info("MouseShare stopped")
+        _quit()
+
+    loop_thread.join(timeout=3)
 
 
 def _open_settings(config: Config, session: Session, tray) -> None:
