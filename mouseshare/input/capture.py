@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+import time
 from typing import Awaitable, Callable, Optional
 
 from pynput import keyboard, mouse
@@ -112,8 +113,9 @@ class InputCapture:
         self._on_edge        = on_edge
         self._edge_direction = edge_direction
 
-        self._forwarding     = False
-        self._edge_pos: tuple[int, int] = (0, 0)   # where cursor crossed edge
+        self._forwarding      = False
+        self._edge_pos: tuple[int, int] = (0, 0)
+        self._last_move_sent  = 0.0   # monotonic timestamp of last forwarded move
 
         self._mouse_listener: Optional[mouse.Listener] = None
         self._kb_listener:    Optional[keyboard.Listener] = None
@@ -186,9 +188,19 @@ class InputCapture:
                 self._on_edge(edge)
             return
 
-        # Forwarding active: pin server cursor at the edge, send move to client.
-        # _pin_cursor_at_edge uses CGWarpMouseCursorPosition (no new event fired).
+        # Pin cursor at edge on every raw event so it can't drift.
+        # mouse.Controller().position calls CGWarpMouseCursorPosition which
+        # moves the cursor without posting a new mouse event — no feedback loop.
         _pin_cursor_at_edge(self._edge_direction)
+
+        # Throttle network sends to ~60 fps.  pynput can fire 200-1000 events/s
+        # on a high-polling mouse; without throttling the asyncio send queue
+        # backs up and causes visible lag on the client.
+        now = time.monotonic()
+        if now - self._last_move_sent < 0.0167:   # 1/60 s ≈ 16.7 ms
+            return
+        self._last_move_sent = now
+
         nx, ny = normalise(x, y)
         self._dispatch(encode_mouse_move(nx, ny))
 
