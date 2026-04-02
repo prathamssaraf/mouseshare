@@ -182,7 +182,8 @@ class InputCapture:
                 self._forwarding = True
                 self._edge_pos   = (x, y)
                 self._on_edge(edge)
-            return False if self._suppress else None
+            # Not forwarding: let the OS move the cursor normally
+            return None
 
         # Forwarding active: pin server cursor at the edge, send move to client
         _pin_cursor_at_edge(self._edge_direction)
