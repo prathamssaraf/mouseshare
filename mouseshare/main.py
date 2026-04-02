@@ -266,6 +266,7 @@ class Session:
 
         # File receiver
         if cfg.file_transfer:
+            from mouseshare.transfer.receiver import FileReceiver
             recv_dir = Path(cfg.receive_dir)
             self._file_receiver = FileReceiver(
                 receive_dir=recv_dir,
