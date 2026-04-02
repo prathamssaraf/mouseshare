@@ -1,0 +1,74 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "mouseshare"
+version = "0.1.0"
+description = "Share mouse, keyboard, clipboard, and files between Mac and Windows over LAN"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+authors = [
+    { name = "MouseShare Contributors" }
+]
+keywords = ["mouse", "keyboard", "sharing", "KVM", "cross-platform", "clipboard"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: MacOS X",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows :: Windows 10",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "pynput==1.7.6",
+    "pyperclip==1.8.2",
+    "Pillow>=10.0.0",
+    "pystray>=0.19.5",
+    "cryptography>=42.0.0",
+]
+
+[project.optional-dependencies]
+mac = [
+    "pyobjc-core>=10.0",
+    "pyobjc-framework-Cocoa>=10.0",
+    "pyobjc-framework-Quartz>=10.0",
+    "uvloop>=0.19.0",
+]
+windows = [
+    "pywin32>=306",
+    "comtypes>=1.4.0",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "black",
+    "ruff",
+]
+
+[project.scripts]
+mouseshare = "mouseshare.main:main"
+
+[project.urls]
+Homepage = "https://github.com/your-org/mouseshare"
+Issues   = "https://github.com/your-org/mouseshare/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mouseshare*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
