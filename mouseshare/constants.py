@@ -73,6 +73,18 @@ EDGE_THRESHOLD = 3          # pixels from edge that trigger a switch
 CLIP_POLL_INTERVAL = 0.5    # seconds between clipboard polls
 CLIP_MAX_IMAGE_BYTES = 50 * 1024 * 1024   # 50 MB image cap
 
+# ── Edge helpers ─────────────────────────────────────────────────────────────
+
+def opposite_edge_direction(direction: int) -> int:
+    """Return the edge opposite to *direction* (the return path)."""
+    return {
+        DIR_LEFT:   DIR_RIGHT,
+        DIR_RIGHT:  DIR_LEFT,
+        DIR_TOP:    DIR_BOTTOM,
+        DIR_BOTTOM: DIR_TOP,
+    }.get(direction, DIR_LEFT)
+
+
 # ── TLS / Security ───────────────────────────────────────────────────────────
 CERT_DIR_NAME  = ".mouseshare"    # inside user's home directory
 CERT_FILE      = "server.crt"

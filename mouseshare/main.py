@@ -245,9 +245,13 @@ class Session:
             code, pressed = decode_key_event(p)
             inject_key(code, pressed)
 
+        # Track whether THIS client currently has control
+        _client_active = {"v": False}
+
         async def _h_switch(_t, p):
             direction = decode_switch(p)
             move_cursor_to_entry_position(direction)
+            _client_active["v"] = True
             log.info("Control received from server (dir=%d)", direction)
 
         self._client.register(MSG_MOUSE_MOVE,   _h_move)
@@ -255,6 +259,45 @@ class Session:
         self._client.register(MSG_MOUSE_SCROLL, _h_scroll)
         self._client.register(MSG_KEY_EVENT,    _h_key)
         self._client.register(MSG_SWITCH,       _h_switch)
+
+        # Client-side edge detection: detect when cursor returns to Mac
+        from mouseshare.constants import EDGE_THRESHOLD, opposite_edge_direction
+        from mouseshare.input.screen import get_screen_size
+        import threading as _threading
+        import time as _time
+        from pynput import mouse as _pmouse
+
+        def _return_edge_watcher():
+            """Poll cursor position; when it hits the return edge, send SWITCH back."""
+            _ctrl = _pmouse.Controller()
+            # The return edge is opposite to the entry direction
+            return_dir = opposite_edge_direction(cfg.other_screen_direction)
+            while True:
+                _time.sleep(0.01)
+                if not _client_active["v"]:
+                    continue
+                try:
+                    cx, cy = _ctrl.position
+                    w, h   = get_screen_size()
+                    hit = False
+                    if return_dir == DIR_LEFT   and cx <= EDGE_THRESHOLD:      hit = True
+                    if return_dir == DIR_RIGHT  and cx >= w - 1 - EDGE_THRESHOLD: hit = True
+                    if return_dir == DIR_TOP    and cy <= EDGE_THRESHOLD:      hit = True
+                    if return_dir == DIR_BOTTOM and cy >= h - 1 - EDGE_THRESHOLD: hit = True
+                    if hit:
+                        _client_active["v"] = False
+                        frame = encode_switch(return_dir)
+                        asyncio.run_coroutine_threadsafe(
+                            self._client.send(frame), self._loop
+                        )
+                        log.info("Returned control to server")
+                except Exception:
+                    pass
+
+        _watcher = _threading.Thread(
+            target=_return_edge_watcher, daemon=True, name="ms-return-watcher"
+        )
+        _watcher.start()
 
         # Clipboard sync
         if cfg.clipboard_sync:
