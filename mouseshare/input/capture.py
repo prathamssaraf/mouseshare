@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import sys
 import threading
 from typing import Awaitable, Callable, Optional
 
@@ -115,7 +114,6 @@ class InputCapture:
 
         self._forwarding     = False
         self._edge_pos: tuple[int, int] = (0, 0)   # where cursor crossed edge
-        self._suppress       = sys.platform == "darwin"  # suppress on macOS
 
         self._mouse_listener: Optional[mouse.Listener] = None
         self._kb_listener:    Optional[keyboard.Listener] = None
@@ -126,11 +124,15 @@ class InputCapture:
 
     def start(self) -> None:
         """Start both listeners in separate daemon threads."""
+        # Mouse listener: suppress=False so the OS still processes events and
+        # the cursor can actually move.  We pin the cursor programmatically
+        # during forwarding — mouse.Controller().position uses
+        # CGWarpMouseCursorPosition which does NOT generate a new move event,
+        # so there is no feedback loop.
         self._mouse_listener = mouse.Listener(
             on_move=self._on_move,
             on_click=self._on_click,
             on_scroll=self._on_scroll,
-            suppress=self._suppress,
         )
         self._kb_listener = keyboard.Listener(
             on_press=self._on_press,
@@ -146,7 +148,7 @@ class InputCapture:
         )
         self._mouse_thread.start()
         self._kb_thread.start()
-        log.debug("Input capture started (suppress=%s)", self._suppress)
+        log.debug("Input capture started")
 
     def stop(self) -> None:
         if self._mouse_listener:
@@ -182,29 +184,25 @@ class InputCapture:
                 self._forwarding = True
                 self._edge_pos   = (x, y)
                 self._on_edge(edge)
-            # Not forwarding: let the OS move the cursor normally
-            return None
+            return
 
-        # Forwarding active: pin server cursor at the edge, send move to client
+        # Forwarding active: pin server cursor at the edge, send move to client.
+        # _pin_cursor_at_edge uses CGWarpMouseCursorPosition (no new event fired).
         _pin_cursor_at_edge(self._edge_direction)
         nx, ny = normalise(x, y)
         self._dispatch(encode_mouse_move(nx, ny))
-        # Suppress on macOS so the server OS doesn't also move its cursor
-        return False if self._suppress else None
 
     def _on_click(self, x: int, y: int, button: mouse.Button, pressed: bool):
         from mouseshare.network.protocol import encode_mouse_click
 
         if self._forwarding:
             self._dispatch(encode_mouse_click(_pynput_button_to_const(button), pressed))
-            return False if self._suppress else None
 
     def _on_scroll(self, x: int, y: int, dx: int, dy: int):
         from mouseshare.network.protocol import encode_mouse_scroll
 
         if self._forwarding:
             self._dispatch(encode_mouse_scroll(dx, dy))
-            return False if self._suppress else None
 
     # ── Keyboard callbacks ────────────────────────────────────────────────────
 
