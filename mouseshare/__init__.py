@@ -11,9 +11,13 @@ if _sys.platform == "darwin":
     # module.  In pyobjc >= 10.0 those symbols are no longer re-exported by
     # Quartz; they live in CoreFoundation instead.  Inject them before pynput
     # is imported so its darwin backend can find them.
+    #
+    # NOTE: pyobjc's lazy importer raises KeyError (not AttributeError) for
+    # missing symbols, so we must catch both when probing / fetching.
     def _patch_quartz_for_pynput() -> None:
         _CF_SYMBOLS = [
             "CFMachPortCreateRunLoopSource",
+            "CFMachPortInvalidate",
             "CFRunLoopAddSource",
             "CFRunLoopRun",
             "CFRunLoopStop",
@@ -21,18 +25,27 @@ if _sys.platform == "darwin":
             "CFRunLoopSourceCreate",
             "CFRunLoopSourceInvalidate",
             "kCFRunLoopDefaultMode",
-            "CFMachPortInvalidate",
         ]
         try:
             import Quartz as _Q
+        except ImportError:
+            return
+        try:
             import CoreFoundation as _CF
         except ImportError:
             return
         for _sym in _CF_SYMBOLS:
-            if not hasattr(_Q, _sym):
-                try:
-                    setattr(_Q, _sym, getattr(_CF, _sym))
-                except AttributeError:
-                    pass
+            # Check whether it already exists in Quartz
+            try:
+                getattr(_Q, _sym)
+                continue  # already available — nothing to do
+            except (AttributeError, KeyError):
+                pass
+            # Fetch from CoreFoundation and inject into Quartz
+            try:
+                _val = getattr(_CF, _sym)
+                setattr(_Q, _sym, _val)
+            except Exception:
+                pass  # best-effort; pynput will report a clearer error if missing
 
     _patch_quartz_for_pynput()
