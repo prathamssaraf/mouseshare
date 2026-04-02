@@ -39,6 +39,16 @@ def get_screen_size() -> tuple[int, int]:
 
 
 def _get_size_mac() -> ScreenSize:
+    # AppKit NSScreen — stable, thread-safe on macOS
+    try:
+        from AppKit import NSScreen
+        screen = NSScreen.mainScreen()
+        if screen is not None:
+            frame = screen.frame()
+            return ScreenSize(width=int(frame.size.width), height=int(frame.size.height))
+    except Exception:
+        pass
+    # Quartz CGDisplay fallback
     try:
         from Quartz import CGDisplayPixelsWide, CGDisplayPixelsHigh, CGMainDisplayID
         display = CGMainDisplayID()
@@ -46,8 +56,9 @@ def _get_size_mac() -> ScreenSize:
             width=CGDisplayPixelsWide(display),
             height=CGDisplayPixelsHigh(display),
         )
-    except ImportError:
-        return _get_size_tkinter()
+    except Exception:
+        pass
+    return _get_size_tkinter()
 
 
 def _get_size_windows() -> ScreenSize:

@@ -528,6 +528,11 @@ def main() -> None:
             log.info("MouseShare stopped")
             tray.stop()
 
+    # Pre-cache screen size on the main thread so background threads never
+    # need to call tkinter (crashes on macOS 26 Tahoe from non-main threads)
+    from mouseshare.input.screen import get_screen_size as _gss
+    _gss()
+
     loop_thread = threading.Thread(target=_run_loop, daemon=True, name="ms-asyncio")
     loop_thread.start()
 
